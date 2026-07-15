@@ -14,6 +14,12 @@ Through a rich graphical user interface (PySide6) or an interactive command-line
 
 ---
 
+## Architecture
+
+![Architecture Diagram](assets/local-rag-agent.png)
+
+---
+
 ## Technologies Used
 
 - **Python 3.12**: The core programming language of the project.
