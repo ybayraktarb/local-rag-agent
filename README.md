@@ -124,7 +124,7 @@ Ayrıntılar ve özel zafiyet bildirim yolu için [SECURITY.md](SECURITY.md) dos
 
 ## Mimari
 
-![Local RAG mimarisi ve güvenlik sınırları](assets/local-rag-agent-v2.png)
+![Local RAG mimarisi ve güvenlik sınırları](assets/local-rag-agent-arch.jpeg)
 
 `src/loaders` PDF çıkarma, `src/indexing` registry/chunk/index yaşam döngüsü, `src/retrieval` confidence gate ve prompt bağlamı, `src/audit` opsiyonel şifreli kayıt, `src/cli` ve `src/ui` arayüzleri içerir.
 
