@@ -134,7 +134,4 @@ Ayrıntılar ve özel zafiyet bildirim yolu için [SECURITY.md](SECURITY.md) dos
 - “Embedding modeli farklı”: `db/` dizinini yedekleyip temizleyin ve yeniden başlatın.
 - SQLCipher bulunamadı: `python -m pip install -e '.[audit]'` kullanın veya audit'i kapalı bırakın.
 - PDF indekslenmiyor: dosyanın okunabilir ve metin içeren bir PDF olduğunu doğrulayın; başarısız dosya sonraki açılışta yeniden denenir.
-
-## Lisans
-
-[MIT](LICENSE). Bu yazılım garanti olmaksızın sunulur; eğitim ve portföy amaçlıdır.
+- 
