@@ -11,33 +11,35 @@ class Theme:
         self.is_dark = is_dark
         self.colors = colors
 
-# central color palettes (generic naming, brand-free)
+# Slate & Indigo palette
 LIGHT_COLORS = {
-    "primary": "#00693E",       # corporate green
-    "accent": "#C9A227",        # accent gold
-    "background": "#F5F6F5",    # off-white background
-    "surface": "#FFFFFF",       # white card backgrounds
-    "text_primary": "#1E1E1E",  # dark charcoal text
-    "text_secondary": "#6B6B6B",# gray secondary text
-    "border": "#E0E0E0",        # light divider gray
-    "success": "#1E824C",       # positive trust green
-    "warning": "#D35400",       # warning orange
-    "error": "#C0392B",         # low confidence red
-    "sidebar_bg": "#ECECEC",    # light gray sidebar
+    "primary": "#4F46E5",
+    "primary_hover": "#4338CA",
+    "primary_soft": "#EEF2FF",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "text_primary": "#0F172A",
+    "text_secondary": "#64748B",
+    "border": "#E2E8F0",
+    "success": "#16A34A",
+    "warning": "#D97706",
+    "error": "#DC2626",
+    "sidebar_bg": "#F1F5F9",
 }
 
 DARK_COLORS = {
-    "primary": "#2FA86A",       # vibrant light green
-    "accent": "#E0B93C",        # vibrant gold
-    "background": "#121212",    # dark charcoal background
-    "surface": "#1E1E1E",       # dark card backgrounds
-    "text_primary": "#F0F0F0",  # light off-white text
-    "text_secondary": "#A0A0A0",# light gray secondary text
-    "border": "#333333",        # dark divider gray
-    "success": "#27AE60",       # bright trust green
-    "warning": "#E67E22",       # bright orange
-    "error": "#E74C3C",         # bright red
-    "sidebar_bg": "#1A1A1A",    # dark sidebar
+    "primary": "#818CF8",
+    "primary_hover": "#6366F1",
+    "primary_soft": "#312E81",
+    "background": "#0F172A",
+    "surface": "#1E293B",
+    "text_primary": "#F1F5F9",
+    "text_secondary": "#94A3B8",
+    "border": "#334155",
+    "success": "#4ADE80",
+    "warning": "#FBBF24",
+    "error": "#F87171",
+    "sidebar_bg": "#111C30",
 }
 
 THEMES = {
@@ -52,7 +54,7 @@ QMainWindow {
 }
 
 QWidget {
-    font-family: "Segoe UI", "Arial", sans-serif;
+    font-family: "Helvetica Neue", "Arial";
     font-size: 13px;
     background-color: transparent;
     color: @text_primary;
@@ -65,9 +67,9 @@ QWidget {
 }
 
 #AppTitle {
-    font-size: 15px;
-    font-weight: bold;
-    color: @primary;
+    font-size: 16px;
+    font-weight: 700;
+    color: @text_primary;
 }
 
 /* Sidebar Panel */
@@ -76,11 +78,15 @@ QWidget {
     border-right: 1px solid @border;
 }
 
+QSplitter::handle {
+    background-color: @border;
+}
+
 #SidebarTitle {
-    font-weight: bold;
-    font-size: 12px;
+    font-weight: 700;
+    font-size: 11px;
     color: @text_secondary;
-    padding: 8px;
+    padding: 18px 16px 10px 16px;
     border-bottom: 1px solid @border;
 }
 
@@ -89,16 +95,51 @@ QListWidget {
     border: none;
 }
 
-QListWidget::item {
+QLineEdit#DocumentSearch {
     background-color: @surface;
     border: 1px solid @border;
-    border-radius: 4px;
-    padding: 6px;
-    margin: 4px;
+    border-radius: 8px;
+    margin: 10px 10px 6px 10px;
+    padding: 8px 10px;
+    color: @text_primary;
+}
+
+QLineEdit#DocumentSearch:focus {
+    border: 1px solid @primary;
+}
+
+QListWidget::item {
+    background-color: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 9px 10px;
+    margin: 2px 8px;
 }
 
 QListWidget::item:hover {
-    background-color: @background;
+    background-color: @primary_soft;
+    color: @primary;
+}
+
+QListWidget::item:selected {
+    background-color: @primary_soft;
+    color: @primary;
+}
+
+#DocumentDetails {
+    background-color: @surface;
+    border-top: 1px solid @border;
+}
+
+#DocumentDetailName {
+    color: @text_primary;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#DocumentDetailMeta {
+    color: @text_secondary;
+    font-size: 11px;
 }
 
 /* Scroll Area & Chat Stream */
@@ -115,21 +156,67 @@ QScrollArea {
 #ChatCard {
     background-color: @surface;
     border: 1px solid @border;
-    border-radius: 6px;
+    border-radius: 12px;
 }
 
 #UserQueryLabel {
-    font-weight: bold;
-    color: @primary;
+    font-size: 14px;
+    font-weight: 700;
+    color: @text_primary;
 }
 
 #BotAnswerLabel {
     color: @text_primary;
+    line-height: 1.45;
 }
 
-#SourcesLabel {
-    font-size: 11px;
+#SourceChip {
+    font-size: 12px;
     color: @text_secondary;
+    background-color: @background;
+    border: 1px solid @border;
+    border-radius: 9px;
+    padding: 3px 7px;
+    font-weight: 500;
+}
+
+#SourceChip:hover {
+    color: @primary;
+    border-color: @primary;
+}
+
+#AssistantWelcomeBubble {
+    background-color: @surface;
+    border: 1px solid @border;
+    border-radius: 12px;
+}
+
+#AssistantLabel {
+    color: @primary;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#WelcomeMessage {
+    color: @text_primary;
+    font-size: 14px;
+}
+
+#LoadingPanel {
+    background-color: @surface;
+    border-bottom: 1px solid @border;
+}
+
+QProgressBar {
+    background-color: @border;
+    border: none;
+    border-radius: 2px;
+    max-height: 4px;
+}
+
+QProgressBar::chunk {
+    background-color: @primary;
+    border-radius: 2px;
 }
 
 #ConfidenceBadge {
@@ -147,11 +234,12 @@ QScrollArea {
 }
 
 QLineEdit#QueryInput {
-    background-color: @background;
+    background-color: @surface;
     border: 1px solid @border;
-    border-radius: 4px;
-    padding: 6px;
+    border-radius: 9px;
+    padding: 10px 12px;
     color: @text_primary;
+    selection-background-color: @primary;
 }
 
 QLineEdit#QueryInput:focus {
@@ -162,13 +250,13 @@ QPushButton {
     background-color: @primary;
     color: #FFFFFF;
     border: none;
-    border-radius: 4px;
-    padding: 6px 14px;
-    font-weight: bold;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-weight: 700;
 }
 
 QPushButton:hover {
-    background-color: @accent;
+    background-color: @primary_hover;
 }
 
 QPushButton:disabled {
@@ -176,30 +264,112 @@ QPushButton:disabled {
     color: @text_secondary;
 }
 
-QPushButton#ThemeToggle {
+QPushButton#DocumentsButton, QPushButton#NewChatButton, QPushButton#SettingsButton, QPushButton#CopyButton {
     background-color: transparent;
     color: @text_secondary;
     border: 1px solid @border;
-    border-radius: 3px;
-    padding: 3px 8px;
+    border-radius: 8px;
+    padding: 7px 11px;
 }
 
-QPushButton#ThemeToggle:hover {
+QPushButton#DocumentsButton:hover, QPushButton#NewChatButton:hover, QPushButton#SettingsButton:hover, QPushButton#CopyButton:hover {
     background-color: @background;
     color: @text_primary;
 }
 
-QPushButton#ExportButton {
-    background-color: transparent;
-    color: @primary;
-    border: 1px solid @primary;
-    border-radius: 3px;
-    padding: 3px 10px;
+QPushButton#CopyButton {
+    padding: 4px 8px;
+    font-size: 11px;
 }
 
-QPushButton#ExportButton:hover {
+#SettingsPopover {
+    background-color: @surface;
+    border: 1px solid @border;
+    border-radius: 10px;
+}
+
+#SettingsSectionTitle {
+    color: @text_secondary;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#SystemStatusCard {
+    background-color: @background;
+    border: 1px solid @border;
+    border-radius: 9px;
+}
+
+#SystemStatusDot {
+    background-color: @warning;
+    border: none;
+    border-radius: 4px;
+}
+
+#SystemStatusDot[state="ready"] {
+    background-color: @success;
+}
+
+#SystemStatusDot[state="error"] {
+    background-color: @error;
+}
+
+#SystemStatusValue {
+    color: @text_primary;
+    font-weight: 700;
+}
+
+#SystemStatusDescription {
+    color: @text_secondary;
+    font-size: 11px;
+}
+
+#SettingsSeparator {
+    color: @border;
+    background-color: @border;
+    max-height: 1px;
+}
+
+#ThemeSelector {
+    background-color: @background;
+    border: 1px solid @border;
+    border-radius: 9px;
+}
+
+QPushButton#ThemeOption {
+    background-color: transparent;
+    color: @text_secondary;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-weight: 600;
+}
+
+QPushButton#ThemeOption:hover {
+    background-color: @primary_soft;
+    color: @primary;
+}
+
+QPushButton#ThemeOption:checked {
     background-color: @primary;
     color: #FFFFFF;
+}
+
+QPushButton#ThemeOption:focus {
+    border: 1px solid @primary;
+}
+
+QPushButton#PopoverExportButton, QPushButton#OpenDocumentButton {
+    background-color: transparent;
+    color: @text_secondary;
+    border: 1px solid @border;
+    padding: 7px 10px;
+}
+
+QPushButton#PopoverExportButton:hover, QPushButton#OpenDocumentButton:hover {
+    background-color: @primary_soft;
+    color: @primary;
+    border-color: @primary;
 }
 
 /* Status Bar */
@@ -207,6 +377,7 @@ QStatusBar {
     background-color: @surface;
     border-top: 1px solid @border;
     color: @text_secondary;
+    padding: 3px 8px;
 }
 """
 
@@ -216,7 +387,9 @@ def generate_qss(theme_name: str) -> str:
     """
     theme = THEMES.get(theme_name, THEMES["light"])
     qss = QSS_TEMPLATE
-    for key, val in theme.colors.items():
+    # Replace longer tokens first (e.g. primary_hover before primary).
+    for key in sorted(theme.colors, key=len, reverse=True):
+        val = theme.colors[key]
         qss = qss.replace(f"@{key}", val)
     return qss
 
