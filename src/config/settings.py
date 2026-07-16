@@ -12,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = os.getenv("DOCS_DIR", str(BASE_DIR / "docs"))
 DB_DIR = os.getenv("DB_DIR", str(BASE_DIR / "db"))
 AUDIT_DIR = os.getenv("AUDIT_DIR", str(BASE_DIR / "audit"))
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # Models configuration
 CHAT_MODEL = os.getenv("CHAT_MODEL", "qwen2.5:1.5b-instruct")
@@ -26,3 +27,13 @@ CONFIDENCE_HIGH_THRESHOLD = float(os.getenv("CONFIDENCE_HIGH_THRESHOLD", "0.80")
 
 # Security & Audit Database Key (SQLCipher password)
 AUDIT_DB_KEY = os.getenv("AUDIT_DB_KEY", "")
+AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+_PLACEHOLDER_KEYS = {"change_me", "changeme", "your_key_here", "example", "test_key_password"}
+
+def validate_audit_settings() -> None:
+    """Fail early when encrypted audit was requested without a real key."""
+    if AUDIT_ENABLED and (len(AUDIT_DB_KEY.strip()) < 16 or AUDIT_DB_KEY.strip().lower() in _PLACEHOLDER_KEYS):
+        raise RuntimeError(
+            "AUDIT_ENABLED=true için en az 16 karakterlik, örnek olmayan bir AUDIT_DB_KEY ayarlayın."
+        )

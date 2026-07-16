@@ -17,27 +17,25 @@ class RetrieverMiddleware:
     Transactions are automatically logged to the encrypted audit database.
     """
     
-    def __init__(self, vectorstore_manager: VectorStoreManager, llm: ChatOllama = None, audit_logger = None):
+    def __init__(self, vectorstore_manager: VectorStoreManager, llm: ChatOllama = None, audit_logger = None,
+                 active_indexes=None):
         """
         Initializes the middleware with a vector store, LLM, and optional audit logger.
         """
         self.vstore = vectorstore_manager
+        self.active_indexes = active_indexes
         self.llm = llm or ChatOllama(
             model=settings.CHAT_MODEL,
-            base_url="http://localhost:11434",
+            base_url=settings.OLLAMA_BASE_URL,
             temperature=0.0
         )
         
         # Instantiate or assign audit logger
-        if audit_logger:
+        if audit_logger is not None:
             self.audit_logger = audit_logger
         else:
-            from src.audit.audit_logger import AuditLogger
-            try:
-                self.audit_logger = AuditLogger()
-            except Exception as e:
-                logger.warning(f"Audit logger başlatılamadı: {e}. Uçtan uca işlemler günlüklenemeyecektir.")
-                self.audit_logger = None
+            from src.audit import create_audit_logger
+            self.audit_logger = create_audit_logger()
         
     def query(self, user_query: str) -> Dict[str, Any]:
         """
@@ -50,7 +48,19 @@ class RetrieverMiddleware:
             Dict[str, Any]: A dict containing the 'answer' string, 'sources' list, and query metadata.
         """
         # 1. Similarity search with score
-        search_results = self.vstore.similarity_search_with_score(user_query, k=settings.RETRIEVAL_K)
+        try:
+            if self.active_indexes is None:
+                search_results = self.vstore.similarity_search_with_score(user_query, k=settings.RETRIEVAL_K)
+            else:
+                search_results = self.vstore.similarity_search_with_score(
+                    user_query, k=settings.RETRIEVAL_K, active_indexes=self.active_indexes
+                )
+        except Exception as exc:
+            logger.error("Yerel embedding/retrieval servisi kullanılamadı: %s", exc)
+            return {
+                "answer": "Yerel arama servisine ulaşılamadı. Ollama servisini ve embedding modelini kontrol edin.",
+                "sources": [], "confidence_score": 0.0, "passed_gate": False, "success": False,
+            }
         
         # 2. Check confidence gate
         passed, docs, score = check_confidence(search_results)
@@ -71,7 +81,8 @@ class RetrieverMiddleware:
                 "answer": answer,
                 "sources": sources,
                 "confidence_score": score,
-                "passed_gate": False
+                "passed_gate": False,
+                "success": True
             }
             
         logger.info(f"Sorgu güven eşiğini geçti. Skor: {score:.4f}")
@@ -129,7 +140,11 @@ class RetrieverMiddleware:
             answer = response.content.strip()
         except Exception as e:
             logger.error(f"LLM sorgulanırken hata oluştu: {e}")
-            answer = f"Sistem hatası nedeniyle yanıt üretilemedi: {str(e)}"
+            answer = "Yerel dil modeli şu anda yanıt üretemedi. Ollama servisini ve model ayarlarını kontrol edin."
+            if self.audit_logger:
+                self.audit_logger.log_query(user_query, answer, sources, score, success=False)
+            return {"answer": answer, "sources": [], "confidence_score": score,
+                    "passed_gate": True, "success": False}
             
         # Log successful query transaction
         if self.audit_logger:
@@ -142,5 +157,6 @@ class RetrieverMiddleware:
             "answer": answer,
             "sources": sources,
             "confidence_score": score,
-            "passed_gate": True
+            "passed_gate": True,
+            "success": True
         }

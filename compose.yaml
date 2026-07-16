@@ -1,0 +1,13 @@
+services:
+  rag-cli:
+    build: .
+    stdin_open: true
+    tty: true
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./docs:/app/docs:ro
+      - ./db:/app/db
+      - ./audit:/app/audit

@@ -1,10 +1,11 @@
 import os
 import pytest
+from unittest.mock import MagicMock
 from langchain_core.documents import Document
 from src.config import settings
 from src.indexing.chunker import DocumentChunker
 from src.indexing.document_registry import DocumentRegistry
-from src.indexing.vectorstore_manager import VectorStoreManager
+from src.indexing.vectorstore_manager import VectorStoreManager, EmbeddingModelMismatchError
 
 TEST_DOCS_DIR = os.path.join(settings.BASE_DIR, "docs_test")
 TEST_DB_DIR = os.path.join(settings.BASE_DIR, "db_test")
@@ -96,3 +97,27 @@ def test_document_registry(clean_test_env):
     new_registry.set_status("doc1.pdf", "passive")
     assert new_registry.data["doc1.pdf"]["status"] == "passive"
     assert "doc1.pdf" not in new_registry.get_active_documents()
+
+
+def test_vector_search_filters_source_and_generation():
+    manager = VectorStoreManager.__new__(VectorStoreManager)
+    manager.db = MagicMock()
+    manager.db.similarity_search_with_score.return_value = []
+    manager.similarity_search_with_score("query", active_indexes=[
+        {"source": "new.pdf", "index_generation": "gen-2"},
+        {"source": "legacy.pdf", "index_generation": None},
+    ])
+    assert manager.db.similarity_search_with_score.call_args.kwargs["filter"] == {"$or": [
+        {"$and": [{"source": "new.pdf"}, {"index_generation": "gen-2"}]},
+        {"source": "legacy.pdf"},
+    ]}
+
+
+def test_embedding_model_mismatch_is_fatal(tmp_path, monkeypatch):
+    (tmp_path / "embedding_model.meta").write_text("another-model", encoding="utf-8")
+    manager = VectorStoreManager.__new__(VectorStoreManager)
+    manager.persist_directory = str(tmp_path)
+    manager.meta_file = str(tmp_path / "embedding_model.meta")
+    monkeypatch.setattr(settings, "EMBED_MODEL", "bge-m3")
+    with pytest.raises(EmbeddingModelMismatchError):
+        manager._check_embedding_model_compatibility()

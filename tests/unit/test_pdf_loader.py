@@ -21,13 +21,17 @@ def generate_test_pdf(filename: str):
     """
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     
-    # Register Arial font to support Turkish characters properly in PDF
-    font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
-    if os.path.exists(font_path):
-        pdfmetrics.registerFont(TTFont('Arial', font_path))
-        font_name = 'Arial'
-    else:
-        font_name = 'Helvetica' # Fallback, though Arial exists on macOS
+    # Embed a Unicode TrueType font so extraction is deterministic on every CI OS.
+    font_paths = [
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+    ]
+    font_path = next((path for path in font_paths if os.path.exists(path)), None)
+    if font_path is None:
+        pytest.skip("Unicode test font is unavailable")
+    pdfmetrics.registerFont(TTFont("TestUnicodeFont", font_path))
+    font_name = "TestUnicodeFont"
 
     doc = SimpleDocTemplate(filename, pagesize=letter)
     styles = getSampleStyleSheet()

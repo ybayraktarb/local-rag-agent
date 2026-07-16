@@ -1,0 +1,9 @@
+.git
+.env
+.venv
+db
+audit
+docs
+__pycache__
+*.pdf
+*.db
