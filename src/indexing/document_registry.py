@@ -1,6 +1,7 @@
 import os
 import json
 import hashlib
+import tempfile
 from datetime import datetime
 from typing import Dict, Any, List
 from src.config import settings
@@ -35,8 +36,21 @@ class DocumentRegistry:
         """
         Saves registry data to JSON file.
         """
-        with open(self.registry_path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=4)
+        directory = os.path.dirname(self.registry_path)
+        os.makedirs(directory, exist_ok=True)
+        fd, temporary_path = tempfile.mkstemp(prefix=".registry-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temporary_path, self.registry_path)
+        except Exception:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
+            raise
 
     def _calculate_hash(self, file_path: str) -> str:
         """
@@ -51,7 +65,7 @@ class DocumentRegistry:
     def scan_docs_folder(self) -> Dict[str, List[str]]:
         """
         Scans docs/ folder and compares hashes to detect added, modified, or deleted files.
-        Automatically updates registry state and saves it.
+        This operation is read-only. Call mark_indexed/remove after vector-store success.
         
         Returns:
             Dict: Dictionary containing lists of 'added', 'modified', and 'deleted' file names.
@@ -72,39 +86,61 @@ class DocumentRegistry:
         for file_name, path in current_files.items():
             file_hash = self._calculate_hash(path)
             if file_name not in self.data:
-                # Document is new
-                self.data[file_name] = {
-                    "filename": file_name,
-                    "hash": file_hash,
-                    "status": "active",  # Defaults to active
-                    "added_at": datetime.now().isoformat(),
-                    "updated_at": datetime.now().isoformat()
-                }
                 changes["added"].append(file_name)
             else:
                 # Document already exists, compare hash
                 if self.data[file_name]["hash"] != file_hash:
-                    self.data[file_name]["hash"] = file_hash
-                    self.data[file_name]["updated_at"] = datetime.now().isoformat()
                     changes["modified"].append(file_name)
                     
         # Check for deleted files (registered but no longer on disk)
         registered_files = list(self.data.keys())
         for file_name in registered_files:
             if file_name not in current_files:
-                del self.data[file_name]
                 changes["deleted"].append(file_name)
-
-        if changes["added"] or changes["modified"] or changes["deleted"]:
-            self.save()
-            
         return changes
+
+    def mark_indexed(self, filename: str, file_path: str = None, index_generation: str = None):
+        path = file_path or os.path.join(settings.DOCS_DIR, filename)
+        now = datetime.now().isoformat()
+        old = self.data.get(filename, {})
+        new_record = {
+            "filename": filename, "hash": self._calculate_hash(path),
+            "status": old.get("status", "active"),
+            "added_at": old.get("added_at", now), "updated_at": now,
+        }
+        if index_generation is not None:
+            new_record["index_generation"] = index_generation
+        self.data[filename] = new_record
+        try:
+            self.save()
+        except Exception:
+            if old:
+                self.data[filename] = old
+            else:
+                self.data.pop(filename, None)
+            raise
+
+    def remove(self, filename: str):
+        if self.data.pop(filename, None) is not None:
+            self.save()
+
+    @property
+    def registry(self):
+        """Compatibility alias for older callers."""
+        return self.data
 
     def get_active_documents(self) -> List[str]:
         """
         Returns a list of active document filenames.
         """
         return [fname for fname, info in self.data.items() if info.get("status") == "active"]
+
+    def get_active_indexes(self) -> List[Dict[str, str]]:
+        """Return active source/generation selectors; generation-less records are legacy."""
+        return [
+            {"source": fname, "index_generation": info.get("index_generation")}
+            for fname, info in self.data.items() if info.get("status") == "active"
+        ]
 
     def set_status(self, filename: str, status: str):
         """

@@ -31,7 +31,7 @@ def guard_connect(self, address):
     if not is_allowed:
         error_msg = (
             f"AĞ ERİŞİMİ ENGELLENDİ: '{host}' dış adresine erişim engellendi. "
-            f"Uygulama %100 yerel (offline) çalışmak zorundadır."
+            "Uygulama katmanındaki NetworkGuard yalnızca localhost bağlantılarına izin veriyor."
         )
         logger.error(error_msg)
         raise PermissionError(error_msg)

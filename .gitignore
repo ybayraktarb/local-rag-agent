@@ -1,12 +1,12 @@
 # Ignore local PDFs (except sample directory)
-docs/*.pdf
+docs/**/*.pdf
 !docs/sample/
 
 # Ignore vector database persistent store
-db/
+/db/
 
 # Ignore audit logs database
-audit/
+/audit/
 
 # Environment files
 .env

@@ -1,15 +1,14 @@
-# Güvenlik Politikası (Security Policy)
+# Güvenlik politikası
 
-## Offline Çalışma İlkesi
+Bu eğitim projesi yerel model ve yerel depolama kullanacak şekilde yapılandırılabilir. Bu mimari tek başına BDDK/MASAK veya başka bir mevzuata uyumluluk, mutlak çevrimdışılık ya da veri gizliliği garantisi değildir. Üretim kullanımı için tehdit modeli, erişim kontrolleri, işletim sistemi firewall'u, yedekleme ve kurum politikaları ayrıca değerlendirilmelidir.
 
-Bu uygulama, bankacılık ve finans sektörü uyum gereksinimleri (BDDK vb.) göz önünde bulundurularak **%100 yerel (offline)** çalışacak şekilde tasarlanmıştır. 
+## Hassas veri
 
-### Veri Gizliliği Güvenceleri:
+- Gerçek PDF, `.env`, audit veritabanı/export'u, model ağırlığı ve kişisel/kurumsal veri commit edilmemelidir.
+- Audit varsayılan olarak kapalıdır. Açıldığında SQLCipher kullanır ve anahtar yalnızca çalışma zamanı ortamından alınır. `.env` dosyasının kendisi açık metindir; uygun dosya izinleri ve bir secret manager tercih edin.
+- Audit export'u soru, cevap ve kaynak adlarını içerir. Hassas veri olarak sınıflandırın.
+- NetworkGuard yalnızca Python socket katmanında yardımcı kontroldür; sistem veya container ağ izolasyonu değildir.
 
-1. **Ağ Bağlantısı Kısıtlamaları**: Sistem dış sunucularla hiçbir şekilde veri alışverişi yapmaz. Ollama bağlantısı sadece `localhost` üzerinden sağlanır.
-2. **Kriptografik Audit Günlükleri**: Kullanıcı sorguları ve sistem yanıtları, SQLCipher kullanılarak yerel olarak şifrelenmiş SQLite veritabanında saklanır. Şifreleme anahtarı çevre değişkenlerinde tanımlanır ve diskte açık metin olarak barındırılmaz.
-3. **PDF ve Veri Koruması**: Kurumsal PDF dokümanları veya hassas veriler hiçbir koşulda Git reposuna commit edilmez. Repoda sadece örnek veri/yapılandırmalar barındırılır.
+## Zafiyet bildirimi
 
-## Bildirimler ve Zafiyet Yönetimi
-
-Uygulamanın offline bütünlüğünü riske atabilecek durumlar için lütfen sistem yöneticiniz ile iletişime geçiniz.
+Hassas ayrıntıları herkese açık issue içinde paylaşmayın. Repository sahibine özel kanaldan etki, yeniden üretim adımları ve önerilen düzeltmeyle bildirin. Açığa çıkmış bir anahtarı koddan silmek yeterli değildir; anahtarı döndürün ve gerekiyorsa Git geçmişini koordineli biçimde temizleyin.

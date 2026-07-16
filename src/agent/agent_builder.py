@@ -1,6 +1,10 @@
+import os
+
 from src.config import settings
 from src.indexing.vectorstore_manager import VectorStoreManager
 from src.retrieval.retriever_middleware import RetrieverMiddleware
+from src.audit import create_audit_logger
+from src.indexing.document_registry import DocumentRegistry
 
 class AgentBuilder:
     """
@@ -22,5 +26,11 @@ class AgentBuilder:
         db_dir = persist_directory or settings.DB_DIR
         # Instantiate dependencies
         vstore_manager = VectorStoreManager(persist_directory=db_dir)
-        middleware = RetrieverMiddleware(vectorstore_manager=vstore_manager)
+        middleware = RetrieverMiddleware(
+            vectorstore_manager=vstore_manager,
+            audit_logger=create_audit_logger(),
+            active_indexes=DocumentRegistry(
+                registry_path=os.path.join(db_dir, "document_registry.json")
+            ).get_active_indexes(),
+        )
         return middleware

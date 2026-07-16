@@ -35,36 +35,19 @@ class InitWorker(QThread):
 
             os.makedirs(settings.DOCS_DIR, exist_ok=True)
             os.makedirs(settings.DB_DIR, exist_ok=True)
-            os.makedirs(settings.AUDIT_DIR, exist_ok=True)
+            if settings.AUDIT_ENABLED:
+                settings.validate_audit_settings()
+                os.makedirs(settings.AUDIT_DIR, exist_ok=True)
 
             self.status_updated.emit("Belgeler taranıyor...")
             registry = DocumentRegistry()
             changes = registry.scan_docs_folder()
 
-            # Handle delta indexing
-            if changes["added"] or changes["modified"]:
-                to_index = changes["added"] + changes["modified"]
-                total_files = len(to_index)
-                self.status_updated.emit(f"{total_files} adet yeni/değişen belge indeksleniyor, lütfen bekleyin...")
-                
-                vstore_manager = VectorStoreManager()
-                chunker = DocumentChunker()
-
-                for idx, filename in enumerate(to_index):
-                    file_path = os.path.join(settings.DOCS_DIR, filename)
-                    self.status_updated.emit(f"Yükleniyor ve İndeksleniyor ({idx+1}/{total_files}): {filename}...")
-                    
-                    loader = PDFLoader(file_path)
-                    docs = loader.load()
-                    chunks = chunker.split_documents(docs)
-                    vstore_manager.add_documents(chunks)
-                    
-            # Handle document cleanup
-            if changes["deleted"]:
-                self.status_updated.emit("Silinen dosyaların verileri temizleniyor...")
-                vstore_manager = VectorStoreManager()
-                for filename in changes["deleted"]:
-                    vstore_manager.delete_document_chunks(filename)
+            if any(changes.values()):
+                from src.indexing.index_lifecycle import synchronize_index
+                _, failures = synchronize_index(registry=registry, progress=lambda name: self.status_updated.emit(f"İndeksleniyor: {name}"))
+                if failures:
+                    self.status_updated.emit("Bazı belgeler indekslenemedi; sonraki açılışta yeniden denenecek.")
 
             self.status_updated.emit("RAG Ajanı kuruluyor...")
             agent = AgentBuilder.build_agent()
@@ -478,6 +461,9 @@ class MainWindow(QMainWindow):
         """
         Triggers save dialog and exports audit history logs.
         """
+        if not settings.AUDIT_ENABLED:
+            QMessageBox.information(self, "Audit Kapalı", "AUDIT_ENABLED=true olmadan audit kaydı veya export oluşturulmaz.")
+            return
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
             "Denetim Kayıtlarını Dışa Aktar",

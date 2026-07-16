@@ -2,11 +2,14 @@ import os
 import logging
 from typing import List, Tuple
 from langchain_chroma import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
 from src.config import settings
 
 logger = logging.getLogger(__name__)
+
+class EmbeddingModelMismatchError(RuntimeError):
+    """Raised when a persisted index belongs to another embedding model."""
 
 class VectorStoreManager:
     """
@@ -25,7 +28,7 @@ class VectorStoreManager:
         # Initialize LangChain OllamaEmbeddings
         self.embeddings = OllamaEmbeddings(
             model=settings.EMBED_MODEL,
-            base_url="http://localhost:11434"
+            base_url=settings.OLLAMA_BASE_URL
         )
         
         self.meta_file = os.path.join(self.persist_directory, "embedding_model.meta")
@@ -51,11 +54,12 @@ class VectorStoreManager:
                 with open(self.meta_file, "r", encoding="utf-8") as f:
                     saved_model = f.read().strip()
                 if saved_model != current_model:
-                    logger.warning(
-                        f"UYARI: Mevcut embedding modeli '{current_model}', "
-                        f"veritabanında kayıtlı modelden '{saved_model}' farklı! "
-                        f"Veritabanının yeniden indekslenmesi önerilir."
+                    raise EmbeddingModelMismatchError(
+                        f"İndeks '{saved_model}' modeliyle oluşturulmuş; yapılandırılan model "
+                        f"'{current_model}'. db dizinini temizleyip belgeleri yeniden indeksleyin."
                     )
+            except EmbeddingModelMismatchError:
+                raise
             except Exception as e:
                 logger.error(f"Meta dosyası okunurken hata: {e}")
         else:
@@ -95,13 +99,15 @@ class VectorStoreManager:
         Args:
             filename: Base name of the file to remove.
         """
-        try:
-            self.db._collection.delete(where={"source": filename})
-            logger.info(f"'{filename}' dosyasına ait tüm chunk'lar vectorstore'dan temizlendi.")
-        except Exception as e:
-            logger.error(f"'{filename}' silinirken Chroma hatası oluştu: {e}")
+        self.db._collection.delete(where={"source": filename})
+        logger.info(f"'{filename}' dosyasına ait tüm chunk'lar vectorstore'dan temizlendi.")
 
-    def similarity_search_with_score(self, query: str, k: int = None) -> List[Tuple[Document, float]]:
+    def delete_generation(self, filename: str, generation: str):
+        self.db._collection.delete(where={"$and": [
+            {"source": filename}, {"index_generation": generation}
+        ]})
+
+    def similarity_search_with_score(self, query: str, k: int = None, active_indexes=None) -> List[Tuple[Document, float]]:
         """
         Searches the vector store for similar chunks and returns them with L2 distances.
         
@@ -113,4 +119,17 @@ class VectorStoreManager:
             List[Tuple[Document, float]]: List of tuples containing Document and distance score.
         """
         k = k or settings.RETRIEVAL_K
+        if active_indexes is not None:
+            active_indexes = list(active_indexes)
+            if not active_indexes:
+                return []
+            selectors = []
+            for item in active_indexes:
+                source, generation = item["source"], item.get("index_generation")
+                if generation:
+                    selectors.append({"$and": [{"source": source}, {"index_generation": generation}]})
+                else:
+                    selectors.append({"source": source})
+            where = selectors[0] if len(selectors) == 1 else {"$or": selectors}
+            return self.db.similarity_search_with_score(query, k=k, filter=where)
         return self.db.similarity_search_with_score(query, k=k)
