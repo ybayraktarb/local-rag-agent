@@ -29,7 +29,7 @@ Bu nedenle sistemin merkezinde yalnızca LLM değil, belgelerin bütün yaşam d
 
 ## Mimari: her katmana sınırlı bir görev
 
-![Local RAG mimarisi](../assets/local-rag-agent-arch.jpeg)
+![Local RAG mimarisi](../assets/local-rag-agent-arch.png)
 
 Akış iki bölümden oluşuyor. İndeksleme tarafında `pdfplumber` sayfa metnini ve tabloları çıkarıyor; chunker metni örtüşmeli parçalara ayırıyor; `bge-m3` embedding'leri Ollama üzerinden üretiyor ve Chroma bunları yerel diskte saklıyor. Sorgu tarafında en yakın parçalar bulunuyor, confidence gate düşük skorlu sonuçları eliyor ve yalnızca eşiği geçen bağlam `qwen2.5` modeline gönderiliyor.
 
