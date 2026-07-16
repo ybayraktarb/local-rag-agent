@@ -9,8 +9,3 @@ Bu eğitim projesi yerel model ve yerel depolama kullanacak şekilde yapılandı
 - Audit export'u soru, cevap ve kaynak adlarını içerir. Hassas veri olarak sınıflandırın.
 - NetworkGuard yalnızca Python socket katmanında yardımcı kontroldür; sistem veya container ağ izolasyonu değildir.
 
-## Zafiyet bildirimi
-
-Hassas ayrıntıları herkese açık issue içinde paylaşmayın. GitHub'daki **[Report a vulnerability](https://github.com/ybayraktarb/local-rag-agent/security/advisories/new)** formunu kullanarak özel bir security advisory taslağı açın. Rapora etkiyi, etkilenen sürüm veya commit'i, güvenli yeniden üretim adımlarını ve varsa önerilen düzeltmeyi ekleyin.
-
-Form kullanılamıyorsa hassas teknik ayrıntıları issue'ya koymadan yalnızca [repository sahibinin GitHub profili](https://github.com/ybayraktarb) üzerinden özel bir iletişim kanalı isteyin. Açığa çıkmış bir anahtarı koddan silmek yeterli değildir; anahtarı döndürün ve gerekiyorsa Git geçmişini koordineli biçimde temizleyin.
