@@ -1,153 +1,141 @@
-# Local Document Assistant (Local RAG Agent)
+# Local Belge Asistanı / Local RAG Agent
 
-**English** | [Türkçe](README_TR.md)
+A local RAG (Retrieval-Augmented Generation) application for querying PDF documents on your machine using [Ollama](https://ollama.com/) and ChromaDB. Everything runs locally with no external API calls required.
 
-A privacy-focused, fully local Retrieval-Augmented Generation (RAG) assistant running on personal PDFs using [Ollama](https://ollama.com/) and ChromaDB. The CLI is the primary interface; a PySide6 desktop GUI and SQLCipher-encrypted audit logging are provided as optional modules.
+![Local Belge Asistanı UI](assets/local-belge-asistani.png)
 
-![Local Document Assistant UI with synthetic documents](assets/local-belge-asistani.png)
+## Features
 
-The desktop interface includes a searchable document drawer, document metadata details, source reference buttons opening the relevant PDF page, clipboard copy actions, new chat sessions, and persistent light/dark theme toggles. The settings view displays system status and export options when audit logging is active. Both the interface and model responses support English and Turkish with runtime switching.
+- **CLI & Desktop GUI**: Full-featured terminal interface and a PySide6 desktop app with light/dark theme support.
+- **Automatic Document Sync**: Drop PDFs into `docs/` — the app indexes new files, updates modified chunks, and cleans up deleted documents.
+- **Direct PDF Citations**: Source buttons open your default PDF viewer directly to the cited page.
+- **Quality & Confidence Filter**: Cosine similarity thresholding rejects irrelevant chunks before they reach the model.
+- **Bilingual (EN / TR)**: Switch interface and response language on the fly (`:language en` / `:language tr` or via GUI settings).
+- **Encrypted Audit Logging (Optional)**: SQLCipher-backed query and response logging with formula-injection-safe CSV/XLSX export.
 
-## Requirements
+---
 
-- Python 3.12 (supports `>=3.12,<3.14`)
-- A running local [Ollama](https://ollama.com/) instance
-- Default embedding model: `bge-m3`
-- Default chat model: `qwen2.5:1.5b-instruct`
+## Quickstart
+
+### Prerequisites
+
+- Python 3.12 (`>=3.12,<3.14`)
+- [Ollama](https://ollama.com/) installed and running
+
+Pull the default models:
 
 ```bash
 ollama pull bge-m3
 ollama pull qwen2.5:1.5b-instruct
 ```
 
-## CLI Quickstart
+### Installation & CLI
 
-macOS / Linux:
+1. **Clone and setup virtual environment:**
 
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-cp .env.example .env
-python -m src.cli.main
-```
+   ```bash
+   # macOS / Linux
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   pip install -e .
+   cp .env.example .env
 
-Windows PowerShell:
+   # Windows (PowerShell)
+   py -3.12 -m venv .venv
+   .venv\Scripts\Activate.ps1
+   pip install -e .
+   Copy-Item .env.example .env
+   ```
 
-```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -e .
-Copy-Item .env.example .env
-python -m src.cli.main
-```
+2. **Add PDFs and run:**
+   
+   Drop your PDF files into `docs/` and launch the CLI:
+   
+   ```bash
+   python -m src.cli.main
+   ```
 
-Place your PDF documents in the `docs/` folder. The application indexes new documents, updates modified files by re-chunking, and removes deleted files from the vector index automatically.
+   **CLI Commands:**
+   - `:status` — Show index and system metrics
+   - `:language en` / `:language tr` — Switch UI and response language
+   - `:export` — Export audit logs (if audit is enabled)
+   - `:quit` — Exit
 
-Available CLI commands:
-- `:status` - View index metrics and runtime status
-- `:export` - Export encrypted audit logs (if audit is enabled)
-- `:language en` / `:language tr` - Switch UI and generation language at runtime
-- `:quit` - Exit the CLI
+---
 
 ## Desktop GUI
 
-Install the GUI optional dependency in your active virtual environment:
+To use the PySide6 desktop interface, install the `gui` extra:
 
 ```bash
-python -m pip install -e '.[gui]'
+pip install -e '.[gui]'
 python -m src.ui.main_window
 ```
 
-For Windows PowerShell: `python -m pip install -e ".[gui]"`
-
-The source button attempts to open the referenced PDF directly at the relevant page number in the default PDF viewer (page fragment support depends on your local viewer). The document drawer allows filtering by filename and double-clicking to open documents.
-
-The language can be toggled at runtime via the `Türkçe / English` selector in the Settings menu. Existing conversation text remains intact while card headers, sources, and UI strings update immediately. Responses follow the chosen language regardless of the original document or prompt language. Changing languages does not affect embeddings or require re-indexing.
+---
 
 ## Configuration
 
-Copy `.env.example` to `.env` to customize settings:
+Settings are configured via `.env` (copied from `.env.example`):
 
 | Variable | Default | Description |
-|---|---:|---|
+|---|---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API endpoint |
-| `CHAT_MODEL` | `qwen2.5:1.5b-instruct` | Response generation LLM |
-| `EMBED_MODEL` | `bge-m3` | Vector embedding model |
-| `DOCS_DIR` / `DB_DIR` / `AUDIT_DIR` | `docs` / `db` / `audit` | Data directory paths |
-| `RETRIEVAL_K` | `3` | Number of chunks to retrieve |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `50` | Text chunking parameters |
-| `CONFIDENCE_THRESHOLD` | `0.45` | Minimum cosine similarity threshold |
-| `CONFIDENCE_HIGH_THRESHOLD` | `0.80` | High-confidence badge threshold for GUI |
-| `AUDIT_ENABLED` | `false` | Enables encrypted query/response audit logging |
-| `AUDIT_DB_KEY` | *(empty)* | Encryption key (minimum 16 chars when enabled) |
+| `CHAT_MODEL` | `qwen2.5:1.5b-instruct` | LLM used for answer generation |
+| `EMBED_MODEL` | `bge-m3` | Embedding model for vector search |
+| `DOCS_DIR` / `DB_DIR` / `AUDIT_DIR` | `docs` / `db` / `audit` | Data storage directories |
+| `RETRIEVAL_K` | `3` | Number of chunks retrieved per query |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `50` | Character size and overlap for text chunking |
+| `CONFIDENCE_THRESHOLD` | `0.45` | Minimum cosine similarity required to pass context |
+| `CONFIDENCE_HIGH_THRESHOLD` | `0.80` | High-confidence badge threshold in GUI |
+| `AUDIT_ENABLED` | `false` | Enable SQLCipher encrypted query logs |
+| `AUDIT_DB_KEY` | *(empty)* | Encryption key (min 16 chars when audit is enabled) |
 
-> [!NOTE]
-> If you switch embedding models, delete the existing `db/` directory and re-index the documents. The system validates index dimensions and avoids running on mismatched models.
+> **Note:** If you change the embedding model, delete the `db/` folder and re-index your documents.
 
-## Encrypted Audit Logging
+---
 
+## Optional Modules
+
+### Encrypted Audit Logging
 ```bash
-python -m pip install -e '.[audit]'
+pip install -e '.[audit]'
 ```
+Set `AUDIT_ENABLED=true` and provide an `AUDIT_DB_KEY` (16+ characters) in `.env`. Exports to CSV/Excel sanitize cell formulas automatically.
 
-Set `AUDIT_ENABLED=true` and configure a strong `AUDIT_DB_KEY` in `.env`. Exported logs contain prompts, answers, and source filenames, and should be handled securely. CSV and XLSX exports sanitize cells to prevent spreadsheet formula injection attacks. SQLCipher is not required when audit logging is disabled.
-
-## Dependency Management
-
-Dependencies are defined in `pyproject.toml`, including optional extras (`gui`, `audit`, `test`). A lightweight `requirements.txt` is maintained for backward compatibility with standard `pip install -r` workflows.
-
-## Docker CLI
-
-With Ollama running on the host machine:
-
+### Docker (CLI)
 ```bash
 docker compose run --rm rag-cli
 ```
+Mounts `docs/`, `db/`, and `audit/` as persistent volumes while connecting to your host's Ollama instance.
 
-`compose.yaml` mounts `docs/`, `db/`, and `audit/` as persistent volumes.
+---
 
 ## Testing
 
-Run the test suite:
-
 ```bash
-python -m pip install -e '.[test,gui]'
-python -m pytest
+# Run unit tests
+pip install -e '.[test,gui]'
+pytest
+
+# Run integration tests against real Ollama instance
+RUN_OLLAMA_INTEGRATION=1 pytest tests/integration
 ```
 
-Unit tests do not require an active Ollama instance or external model downloads. Real service integration tests run opt-in:
+---
 
-```bash
-RUN_OLLAMA_INTEGRATION=1 python -m pytest tests/integration
+## Project Structure
+
 ```
-
-## Security Boundaries
-
-- Running local models and vector stores reduces reliance on third-party APIs, but does not inherently guarantee regulatory compliance or absolute isolation.
-- `NetworkGuard` provides process-level defensive filtering at the Python socket layer; it does not replace OS firewalls or container network isolation.
-- The retrieval confidence gate filters out low-similarity chunks to reduce unsupported answers; it does not guarantee hallucination-free generation. Always verify sources.
-- Structured `<context>` boundaries mitigate prompt injection risks within retrieved content.
-- Do not commit sensitive documents, `.env` secrets, audit databases, or model weights to version control.
-
-See [SECURITY.md](SECURITY.md) for full security guidelines and vulnerability reporting procedures.
-
-## Architecture
-
-![Local RAG architecture and security boundaries](assets/local-rag-agent-arch.png)
-
-- `src/loaders`: PDF text and metadata extraction
-- `src/indexing`: Document tracking, chunking, and vector index lifecycle
-- `src/retrieval`: Vector retrieval, confidence gating, and prompt assembly
-- `src/audit`: Optional SQLCipher-backed audit logging and sanitization
-- `src/cli` & `src/ui`: Terminal and PySide6 desktop interfaces
-
-## Troubleshooting
-
-- **"Local language model failed to generate response"**: Ensure `ollama serve` is running and verify `OLLAMA_BASE_URL` and model names.
-- **"Embedding model mismatch"**: Clear the `db/` folder and restart to regenerate embeddings.
-- **SQLCipher not found**: Install the audit extra via `python -m pip install -e '.[audit]'` or keep audit disabled.
-- **PDF not indexing**: Verify that the PDF contains selectable text (not scanned images).
-## License
-
-[MIT](LICENSE)
+├── docs/           # Place your PDF documents here
+├── src/
+│   ├── loaders/    # PDF parsing & text extraction
+│   ├── indexing/   # Chunking, document registry & ChromaDB indexing
+│   ├── retrieval/  # Similarity search, confidence gating & prompt assembly
+│   ├── audit/      # Optional SQLCipher logging & sanitized export
+│   ├── cli/        # Terminal CLI interface
+│   └── ui/         # PySide6 desktop GUI
+├── tests/          # Unit and integration test suites
+├── compose.yaml    # Docker Compose setup for CLI
+└── pyproject.toml  # Project dependencies & build config
+```
