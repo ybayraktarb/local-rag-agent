@@ -1,4 +1,4 @@
-# Local Belge Asistanı / Local RAG Agent
+# Local RAG Agent
 
 A local RAG (Retrieval-Augmented Generation) application for querying PDF documents on your machine using [Ollama](https://ollama.com/) and ChromaDB. Everything runs locally with no external API calls required.
 
