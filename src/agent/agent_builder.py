@@ -13,7 +13,7 @@ class AgentBuilder:
     """
     
     @staticmethod
-    def build_agent(persist_directory: str = None) -> RetrieverMiddleware:
+    def build_agent(persist_directory: str = None, language: str = "tr") -> RetrieverMiddleware:
         """
         Builds and returns the configured RAG middleware pipeline.
         
@@ -32,5 +32,6 @@ class AgentBuilder:
             active_indexes=DocumentRegistry(
                 registry_path=os.path.join(db_dir, "document_registry.json")
             ).get_active_indexes(),
+            language=language,
         )
         return middleware

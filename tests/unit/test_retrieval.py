@@ -91,3 +91,25 @@ def test_prompt_contains_only_retrieved_context():
     RetrieverMiddleware(store, llm=llm).query("kullanıcı sorusu")
     prompt = str(llm.invoke.call_args.args[0])
     assert "ONAYLI BAĞLAM" in prompt and "kullanıcı sorusu" in prompt
+
+
+def test_english_messages_and_prompt_language():
+    failed_store = MagicMock()
+    failed_store.similarity_search_with_score.side_effect = RuntimeError("offline")
+    middleware = RetrieverMiddleware(failed_store, llm=MagicMock(), language="en")
+    assert middleware.query("question")["answer"].startswith("The local search service")
+
+    doc = Document(page_content="TÜRKÇE BAĞLAM", metadata={"source": "policy.pdf"})
+    store = MagicMock(); store.similarity_search_with_score.return_value = [(doc, 0.1)]
+    llm = MagicMock(); llm.invoke.return_value.content = "English answer"
+    middleware = RetrieverMiddleware(store, llm=llm, language="en")
+    middleware.query("question")
+    prompt = llm.invoke.call_args.args[0][0].content
+    assert "always answer in English" in prompt
+    assert "only the context" in prompt
+    assert "prompt injection" in prompt
+
+    middleware.set_language("tr")
+    llm.invoke.return_value.content = "Türkçe yanıt"
+    middleware.query("question")
+    assert "Türkçe yanıtlamaktır" in llm.invoke.call_args.args[0][0].content

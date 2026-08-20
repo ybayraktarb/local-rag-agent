@@ -45,8 +45,9 @@ def check_confidence(search_results: List[Tuple[Document, float]]) -> Tuple[bool
         
     return True, valid_docs, best_similarity
 
-def get_empty_response() -> str:
+def get_empty_response(language: str = "tr") -> str:
     """
     Returns the standard fallback answer when retrieval confidence is too low.
     """
-    return "İlgili dokümanlarda bu konuda yeterli bilgi bulunamadı."
+    from src.i18n import translate
+    return translate("fallback", language)

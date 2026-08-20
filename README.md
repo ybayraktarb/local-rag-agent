@@ -1,26 +1,28 @@
-# Local Belge Asistanı
+# Local Document Assistant (Local RAG Agent)
 
-[Ollama](https://ollama.com/) ve Chroma ile kendi PDF'leriniz üzerinde çalışan, eğitim ve portföy amaçlı yerel bir RAG uygulaması. CLI temel kullanım yoludur; PySide6 masaüstü arayüzü ve SQLCipher audit kaydı isteğe bağlıdır.
+**English** | [Türkçe](README_TR.md)
 
-![Sentetik belgelerle Local Belge Asistanı ekranı](assets/local-belge-asistani.png)
+A privacy-focused, fully local Retrieval-Augmented Generation (RAG) assistant running on personal PDFs using [Ollama](https://ollama.com/) and ChromaDB. The CLI is the primary interface; a PySide6 desktop GUI and SQLCipher-encrypted audit logging are provided as optional modules.
 
-Masaüstü arayüzünde aranabilir belge çekmecesi, belge ayrıntıları, sayfaya yönlendiren kaynak düğmeleri, yanıt kopyalama, yeni sohbet ve kalıcı açık/koyu tema bulunur. Ayarlar menüsü sistem durumunu; audit etkinse dışa aktarma seçeneğini gösterir.
+![Local Document Assistant UI with synthetic documents](assets/local-belge-asistani.png)
 
-## Gereksinimler
+The desktop interface includes a searchable document drawer, document metadata details, source reference buttons opening the relevant PDF page, clipboard copy actions, new chat sessions, and persistent light/dark theme toggles. The settings view displays system status and export options when audit logging is active. Both the interface and model responses support English and Turkish with runtime switching.
 
-- Python 3.12 (proje `>=3.12,<3.14` aralığını destekler)
-- Yerelde çalışan [Ollama](https://ollama.com/)
-- Varsayılan embedding modeli `bge-m3`
-- Varsayılan sohbet modeli `qwen2.5:1.5b-instruct`
+## Requirements
+
+- Python 3.12 (supports `>=3.12,<3.14`)
+- A running local [Ollama](https://ollama.com/) instance
+- Default embedding model: `bge-m3`
+- Default chat model: `qwen2.5:1.5b-instruct`
 
 ```bash
 ollama pull bge-m3
 ollama pull qwen2.5:1.5b-instruct
 ```
 
-## CLI kurulumu
+## CLI Quickstart
 
-macOS/Linux:
+macOS / Linux:
 
 ```bash
 python3.12 -m venv .venv
@@ -40,97 +42,112 @@ Copy-Item .env.example .env
 python -m src.cli.main
 ```
 
-PDF dosyalarınızı `docs/` içine kopyalayın. Uygulama yeni dosyaları indeksler, değişen dosyaların eski chunk'larını yenileriyle değiştirir ve silinen dosyaları indeksten kaldırır. `:status`, `:export` ve `:quit` CLI komutlarıdır.
+Place your PDF documents in the `docs/` folder. The application indexes new documents, updates modified files by re-chunking, and removes deleted files from the vector index automatically.
 
-## Masaüstü arayüzü
+Available CLI commands:
+- `:status` - View index metrics and runtime status
+- `:export` - Export encrypted audit logs (if audit is enabled)
+- `:language en` / `:language tr` - Switch UI and generation language at runtime
+- `:quit` - Exit the CLI
 
-Aktif sanal ortamda GUI extra'sını kurun:
+## Desktop GUI
+
+Install the GUI optional dependency in your active virtual environment:
 
 ```bash
 python -m pip install -e '.[gui]'
 python -m src.ui.main_window
 ```
 
-Windows PowerShell'de extra ifadesini çift tırnakla da verebilirsiniz: `python -m pip install -e ".[gui]"`.
+For Windows PowerShell: `python -m pip install -e ".[gui]"`
 
-Kaynak düğmesi PDF'yi varsayılan görüntüleyicide ilgili sayfa fragment'ıyla açmayı dener. Fragment desteği kullanılan PDF görüntüleyicisine bağlıdır. Belge çekmecesinde dosya adına göre arama yapılabilir; bir belge çift tıklanarak açılabilir.
+The source button attempts to open the referenced PDF directly at the relevant page number in the default PDF viewer (page fragment support depends on your local viewer). The document drawer allows filtering by filename and double-clicking to open documents.
 
-## Yapılandırma
+The language can be toggled at runtime via the `Türkçe / English` selector in the Settings menu. Existing conversation text remains intact while card headers, sources, and UI strings update immediately. Responses follow the chosen language regardless of the original document or prompt language. Changing languages does not affect embeddings or require re-indexing.
 
-`.env.example` dosyasını `.env` olarak kopyalayın; kod değişikliği gerekmez.
+## Configuration
 
-| Değişken | Varsayılan | Açıklama |
+Copy `.env.example` to `.env` to customize settings:
+
+| Variable | Default | Description |
 |---|---:|---|
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API adresi |
-| `CHAT_MODEL` | `qwen2.5:1.5b-instruct` | Yanıt modeli |
-| `EMBED_MODEL` | `bge-m3` | Embedding modeli |
-| `DOCS_DIR` / `DB_DIR` / `AUDIT_DIR` | `docs` / `db` / `audit` | Veri dizinleri |
-| `RETRIEVAL_K` | `3` | Alınacak en yakın chunk sayısı |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `50` | Chunk ayarları |
-| `CONFIDENCE_THRESHOLD` | `0.45` | Minimum cosine benzerliği |
-| `CONFIDENCE_HIGH_THRESHOLD` | `0.80` | GUI yüksek güven göstergesi |
-| `AUDIT_ENABLED` | `false` | Şifreli sorgu kaydını etkinleştirir |
-| `AUDIT_DB_KEY` | boş | Audit açıkken en az 16 karakter olmalı |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API endpoint |
+| `CHAT_MODEL` | `qwen2.5:1.5b-instruct` | Response generation LLM |
+| `EMBED_MODEL` | `bge-m3` | Vector embedding model |
+| `DOCS_DIR` / `DB_DIR` / `AUDIT_DIR` | `docs` / `db` / `audit` | Data directory paths |
+| `RETRIEVAL_K` | `3` | Number of chunks to retrieve |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `50` | Text chunking parameters |
+| `CONFIDENCE_THRESHOLD` | `0.45` | Minimum cosine similarity threshold |
+| `CONFIDENCE_HIGH_THRESHOLD` | `0.80` | High-confidence badge threshold for GUI |
+| `AUDIT_ENABLED` | `false` | Enables encrypted query/response audit logging |
+| `AUDIT_DB_KEY` | *(empty)* | Encryption key (minimum 16 chars when enabled) |
 
-Embedding modelini değiştirirseniz mevcut `db/` indeksini yedekleyip kaldırın ve PDF'leri yeniden indeksleyin. Uygulama uyumsuz indeksi sessizce kullanmaz.
+> [!NOTE]
+> If you switch embedding models, delete the existing `db/` directory and re-index the documents. The system validates index dimensions and avoids running on mismatched models.
 
-## Şifreli audit
+## Encrypted Audit Logging
 
 ```bash
 python -m pip install -e '.[audit]'
 ```
 
-Ardından `.env` içinde `AUDIT_ENABLED=true` ve güçlü, benzersiz bir `AUDIT_DB_KEY` ayarlayın. Audit export'ları soru, yanıt ve kaynak adlarını içerebilir; hassas dosya olarak saklayın. CSV/XLSX hücreleri formül enjeksiyonuna karşı etkisizleştirilir. Audit kapalıyken SQLCipher gerekmez ve arayüzde dışa aktarma gösterilmez.
+Set `AUDIT_ENABLED=true` and configure a strong `AUDIT_DB_KEY` in `.env`. Exported logs contain prompts, answers, and source filenames, and should be handled securely. CSV and XLSX exports sanitize cells to prevent spreadsheet formula injection attacks. SQLCipher is not required when audit logging is disabled.
 
-## Bağımlılıklar
+## Dependency Management
 
-Kurulumun tek kaynak dosyası `pyproject.toml`'dır. Runtime bağımlılıkları ve `gui`, `audit`, `test` extra'ları burada tanımlanır. `requirements.txt`, eski `pip install -r requirements.txt` iş akışları için projeyi yönlendiren ince bir uyumluluk dosyasıdır; bağımsız sürüm listesi değildir.
+Dependencies are defined in `pyproject.toml`, including optional extras (`gui`, `audit`, `test`). A lightweight `requirements.txt` is maintained for backward compatibility with standard `pip install -r` workflows.
 
-## Docker ile CLI
+## Docker CLI
 
-Ollama host üzerinde çalışırken:
+With Ollama running on the host machine:
 
 ```bash
 docker compose run --rm rag-cli
 ```
 
-Compose `docs`, `db` ve `audit` dizinlerini kalıcı bağlar. Docker GUI çalıştırma yolu değildir. Linux'ta host Ollama erişimi ortamınıza göre ek yapılandırma gerektirebilir.
+`compose.yaml` mounts `docs/`, `db/`, and `audit/` as persistent volumes.
 
-## Testler
+## Testing
+
+Run the test suite:
 
 ```bash
 python -m pip install -e '.[test,gui]'
 python -m pytest
 ```
 
-Normal test paketi Ollama veya model indirmez. Gerçek servis testi ayrıca `integration` marker'ı ile opt-in tutulur:
+Unit tests do not require an active Ollama instance or external model downloads. Real service integration tests run opt-in:
 
 ```bash
 RUN_OLLAMA_INTEGRATION=1 python -m pytest tests/integration
 ```
 
-GitHub Actions unit testlerini Ubuntu, macOS ve Windows'ta; audit testlerini ayrı bir Ubuntu job'ında çalıştırır. Ollama entegrasyon job'ı manuel `workflow_dispatch` ile başlatılır.
+## Security Boundaries
 
-## Güvenlik sınırları
+- Running local models and vector stores reduces reliance on third-party APIs, but does not inherently guarantee regulatory compliance or absolute isolation.
+- `NetworkGuard` provides process-level defensive filtering at the Python socket layer; it does not replace OS firewalls or container network isolation.
+- The retrieval confidence gate filters out low-similarity chunks to reduce unsupported answers; it does not guarantee hallucination-free generation. Always verify sources.
+- Structured `<context>` boundaries mitigate prompt injection risks within retrieved content.
+- Do not commit sensitive documents, `.env` secrets, audit databases, or model weights to version control.
 
-- Yerel modeller ve yerel depolama harici API kullanımını azaltır; tek başına mevzuat uyumluluğu, mutlak çevrimdışılık veya veri sızıntısına karşı garanti sağlamaz.
-- `NetworkGuard` uygulama içindeki Python socket bağlantıları için yardımcı bir savunmadır. İşletim sistemi firewall'u, container ağı, erişim kontrolü veya süreç izolasyonunun yerini tutmaz.
-- Confidence gate düşük benzerlikli sonuçları reddederek desteklenmeyen yanıt riskini azaltır; hatasız veya “hallucination-free” yanıt garantisi vermez. Kaynakları doğrulayın.
-- `<context>` sınırı ve sistem prompt'u dolaylı prompt injection riskini azaltmaya çalışır; eksiksiz izolasyon değildir.
-- Gerçek kurum dokümanlarını, audit export'larını, `.env` dosyasını ve model ağırlıklarını Git'e eklemeyin.
-- Audit anahtarı kaybolursa kayıtlar kurtarılamaz; açığa çıkarsa anahtarı döndürün ve yeni bir veritabanı oluşturun.
+See [SECURITY.md](SECURITY.md) for full security guidelines and vulnerability reporting procedures.
 
-Ayrıntılar ve özel zafiyet bildirim yolu için [SECURITY.md](SECURITY.md) dosyasına bakın.
+## Architecture
 
-## Mimari
+![Local RAG architecture and security boundaries](assets/local-rag-agent-arch.png)
 
-![Local RAG mimarisi ve güvenlik sınırları](assets/local-rag-agent-arch.png)
+- `src/loaders`: PDF text and metadata extraction
+- `src/indexing`: Document tracking, chunking, and vector index lifecycle
+- `src/retrieval`: Vector retrieval, confidence gating, and prompt assembly
+- `src/audit`: Optional SQLCipher-backed audit logging and sanitization
+- `src/cli` & `src/ui`: Terminal and PySide6 desktop interfaces
 
-`src/loaders` PDF çıkarma, `src/indexing` registry/chunk/index yaşam döngüsü, `src/retrieval` confidence gate ve prompt bağlamı, `src/audit` opsiyonel şifreli kayıt, `src/cli` ve `src/ui` arayüzleri içerir.
+## Troubleshooting
 
-## Sorun giderme
+- **"Local language model failed to generate response"**: Ensure `ollama serve` is running and verify `OLLAMA_BASE_URL` and model names.
+- **"Embedding model mismatch"**: Clear the `db/` folder and restart to regenerate embeddings.
+- **SQLCipher not found**: Install the audit extra via `python -m pip install -e '.[audit]'` or keep audit disabled.
+- **PDF not indexing**: Verify that the PDF contains selectable text (not scanned images).
+## License
 
-- “Yerel dil modeli yanıt üretemedi”: `ollama serve` çalışıyor mu, `OLLAMA_BASE_URL` ve model adları doğru mu kontrol edin.
-- “Embedding modeli farklı”: `db/` dizinini yedekleyip temizleyin ve yeniden başlatın.
-- SQLCipher bulunamadı: `python -m pip install -e '.[audit]'` kullanın veya audit'i kapalı bırakın.
-- PDF indekslenmiyor: dosyanın okunabilir ve metin içeren bir PDF olduğunu doğrulayın; başarısız dosya sonraki açılışta yeniden denenir.
+[MIT](LICENSE)

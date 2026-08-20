@@ -6,11 +6,13 @@ from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QLabel, QListWidget, QFileDialog, QMessageBox,
-    QProgressBar, QScrollArea, QFrame, QSplitter, QApplication, QButtonGroup
+    QProgressBar, QScrollArea, QFrame, QSplitter, QApplication, QButtonGroup, QComboBox
 )
 from src.config import settings
 from src.audit.audit_export import export_audit_logs
-from src.ui.theme import generate_qss, load_theme_preference, save_theme_preference, THEMES
+from src.ui.theme import (generate_qss, load_theme_preference, load_language_preference,
+                          save_theme_preference, save_language_preference, THEMES)
+from src.i18n import translate as tr
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +25,13 @@ class InitWorker(QThread):
     finished = Signal(object)  # Emits the initialized Agent instance
     error_occurred = Signal(str)
 
+    def __init__(self, language="tr"):
+        super().__init__()
+        self.language = language
+
     def run(self):
         try:
-            self.status_updated.emit("Dizin yapıları kontrol ediliyor...")
+            self.status_updated.emit(tr("loading", self.language))
             from src.config import settings
             from src.indexing.document_registry import DocumentRegistry
             from src.indexing.chunker import DocumentChunker
@@ -39,18 +45,18 @@ class InitWorker(QThread):
                 settings.validate_audit_settings()
                 os.makedirs(settings.AUDIT_DIR, exist_ok=True)
 
-            self.status_updated.emit("Belgeler taranıyor...")
+            self.status_updated.emit(tr("cli.scanning", self.language))
             registry = DocumentRegistry()
             changes = registry.scan_docs_folder()
 
             if any(changes.values()):
                 from src.indexing.index_lifecycle import synchronize_index
-                _, failures = synchronize_index(registry=registry, progress=lambda name: self.status_updated.emit(f"İndeksleniyor: {name}"))
+                _, failures = synchronize_index(registry=registry, progress=lambda name: self.status_updated.emit(tr("init.indexing", self.language, name=name)))
                 if failures:
-                    self.status_updated.emit("Bazı belgeler indekslenemedi; sonraki açılışta yeniden denenecek.")
+                    self.status_updated.emit(tr("init.some_failed", self.language))
 
-            self.status_updated.emit("RAG Ajanı kuruluyor...")
-            agent = AgentBuilder.build_agent()
+            self.status_updated.emit(tr("cli.building", self.language))
+            agent = AgentBuilder.build_agent(language=self.language)
             self.finished.emit(agent)
             
         except Exception as e:
@@ -85,11 +91,14 @@ class SettingsPopover(QFrame):
 
     theme_changed = Signal(bool)
     export_requested = Signal()
+    language_changed = Signal(str)
 
-    def __init__(self, audit_enabled: bool, parent=None):
+    def __init__(self, audit_enabled: bool, language="tr", parent=None):
         super().__init__(parent, Qt.Popup | Qt.FramelessWindowHint)
         self.setObjectName("SettingsPopover")
         self.setFixedWidth(276)
+        self.language = language
+        self.status_state = "loading"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -123,9 +132,9 @@ class SettingsPopover(QFrame):
         separator.setFrameShape(QFrame.HLine)
         layout.addWidget(separator)
 
-        theme_label = QLabel("Görünüm")
-        theme_label.setObjectName("SettingsSectionTitle")
-        layout.addWidget(theme_label)
+        self.theme_label = QLabel()
+        self.theme_label.setObjectName("SettingsSectionTitle")
+        layout.addWidget(self.theme_label)
 
         theme_selector = QFrame()
         theme_selector.setObjectName("ThemeSelector")
@@ -150,19 +159,44 @@ class SettingsPopover(QFrame):
         theme_layout.addWidget(self.dark_theme_button)
         layout.addWidget(theme_selector)
 
+        self.language_label = QLabel()
+        self.language_label.setObjectName("SettingsSectionTitle")
+        layout.addWidget(self.language_label)
+        self.language_selector = QComboBox()
+        self.language_selector.addItem("Türkçe", "tr")
+        self.language_selector.addItem("English", "en")
+        self.language_selector.setCurrentIndex(0 if language == "tr" else 1)
+        self.language_selector.currentIndexChanged.connect(
+            lambda: self.language_changed.emit(self.language_selector.currentData())
+        )
+        layout.addWidget(self.language_selector)
+
         self.export_button = QPushButton("Dışa aktar")
         self.export_button.setObjectName("PopoverExportButton")
         self.export_button.clicked.connect(self.export_requested)
         self.export_button.setVisible(audit_enabled)
         if audit_enabled:
             layout.addWidget(self.export_button)
+        self.retranslate(language)
+
+    def retranslate(self, language):
+        self.language = language
+        self.theme_label.setText(tr("appearance", language))
+        self.language_label.setText(tr("language", language))
+        self.light_theme_button.setText(tr("light", language))
+        self.dark_theme_button.setText(tr("dark", language))
+        self.light_theme_button.setAccessibleName(tr("light_theme", language))
+        self.dark_theme_button.setAccessibleName(tr("dark_theme", language))
+        self.export_button.setText(tr("export", language))
+        self.set_system_status(tr({"loading": "preparing", "ready": "ready", "error": "offline"}[self.status_state], language), self.status_state)
 
     def set_system_status(self, text: str, state: str):
+        self.status_state = state
         self.status_label.setText(text)
         descriptions = {
-            "loading": "Belgeler ve yerel model kontrol ediliyor.",
-            "ready": "Yerel arama kullanıma hazır.",
-            "error": "Yerel servis başlatılamadı.",
+            "loading": tr("status.loading_desc", self.language),
+            "ready": tr("status.ready_desc", self.language),
+            "error": tr("status.error_desc", self.language),
         }
         self.status_description.setText(descriptions.get(state, ""))
         self.status_dot.setProperty("state", state)
@@ -176,10 +210,13 @@ class ChatCard(QFrame):
     """
     source_requested = Signal(str, object)
 
-    def __init__(self, query: str, answer: str, sources: list, confidence: float, colors: dict):
+    def __init__(self, query: str, answer: str, sources: list, confidence: float, colors: dict, language="tr"):
         super().__init__()
         self.answer = answer
         self.confidence = confidence
+        self.query = query
+        self.sources = sources
+        self.language = language
         self.setObjectName("ChatCard")
         self.setFrameShape(QFrame.StyledPanel)
         
@@ -189,10 +226,10 @@ class ChatCard(QFrame):
 
         # 1. Header line (Query text + Confidence Badge)
         header_layout = QHBoxLayout()
-        query_label = QLabel(f"Soru: {query}")
-        query_label.setObjectName("UserQueryLabel")
-        query_label.setWordWrap(True)
-        header_layout.addWidget(query_label, stretch=4)
+        self.query_label = QLabel()
+        self.query_label.setObjectName("UserQueryLabel")
+        self.query_label.setWordWrap(True)
+        header_layout.addWidget(self.query_label, stretch=4)
 
         # Confidence Score Badge
         self.confidence_badge = QLabel()
@@ -226,7 +263,9 @@ class ChatCard(QFrame):
         if sources:
             sources_layout = QHBoxLayout()
             sources_layout.setSpacing(6)
-            sources_layout.addWidget(QLabel("Kaynaklar"))
+            self.sources_label = QLabel()
+            sources_layout.addWidget(self.sources_label)
+            self.source_chips = []
             for source in sources:
                 page = source.get("page", "")
                 page_text = f" · Sayfa {page}" if page not in (None, "") else ""
@@ -240,21 +279,35 @@ class ChatCard(QFrame):
                     self.source_requested.emit(name, page_number)
                 )
                 sources_layout.addWidget(chip)
+                self.source_chips.append((chip, filename, page))
             sources_layout.addStretch()
             card_layout.addLayout(sources_layout)
 
-        self.apply_colors(colors)
+        self.retranslate(language, colors)
+
+    def retranslate(self, language, colors=None):
+        self.language = language
+        self.query_label.setText(f"{tr('question', language)}: {self.query}")
+        self.copy_button.setText(tr("copy", language))
+        if hasattr(self, "sources_label"):
+            self.sources_label.setText(tr("sources", language))
+            for chip, filename, page in self.source_chips:
+                page_text = f" · {tr('page', language)} {page}" if page not in (None, "") else ""
+                chip.setText(f"{filename}{page_text}")
+                chip.setToolTip(tr("open_document_tip", language))
+        if colors:
+            self.apply_colors(colors)
 
     def apply_colors(self, colors):
         if self.confidence >= settings.CONFIDENCE_HIGH_THRESHOLD:
             badge_color = colors["success"]
-            badge_text = f"Yüksek Güven ({self.confidence:.2f})"
+            badge_text = tr("confidence.high", self.language, score=self.confidence)
         elif self.confidence >= settings.CONFIDENCE_THRESHOLD:
             badge_color = colors["warning"]
-            badge_text = f"Orta Güven ({self.confidence:.2f})"
+            badge_text = tr("confidence.medium", self.language, score=self.confidence)
         else:
             badge_color = colors["error"]
-            badge_text = "Bulunamadı"
+            badge_text = tr("confidence.none", self.language)
         self.confidence_badge.setText(badge_text)
         self.confidence_badge.setStyleSheet(
             f"background-color: {badge_color}; border-radius: 9px; padding: 3px 9px; "
@@ -266,8 +319,8 @@ class ChatCard(QFrame):
 
     def copy_answer(self):
         QApplication.clipboard().setText(self.answer)
-        self.copy_button.setText("Kopyalandı")
-        QTimer.singleShot(1200, lambda: self.copy_button.setText("Kopyala"))
+        self.copy_button.setText(tr("copied", self.language))
+        QTimer.singleShot(1200, lambda: self.copy_button.setText(tr("copy", self.language)))
 
 
 class MainWindow(QMainWindow):
@@ -281,10 +334,10 @@ class MainWindow(QMainWindow):
         self.init_worker = None
         self.query_worker = None
         
-        # Load theme setting
         self.current_theme = load_theme_preference()
+        self.current_language = load_language_preference()
         
-        self.setWindowTitle("Local Belge Asistanı")
+        self.setWindowTitle(tr("app.title", self.current_language))
         self.resize(1120, 760)
         self.setMinimumSize(860, 600)
         
@@ -310,9 +363,9 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(18, 0, 18, 0)
         header_layout.setSpacing(12)
 
-        app_title = QLabel("Local Belge Asistanı")
-        app_title.setObjectName("AppTitle")
-        header_layout.addWidget(app_title)
+        self.app_title = QLabel()
+        self.app_title.setObjectName("AppTitle")
+        header_layout.addWidget(self.app_title)
 
         self.documents_btn = QPushButton("Belgeler · 0")
         self.documents_btn.setObjectName("DocumentsButton")
@@ -332,9 +385,10 @@ class MainWindow(QMainWindow):
         self.settings_btn.setFixedSize(34, 34)
         icon_path = os.path.join(settings.BASE_DIR, "assets", "settings.svg")
         self.settings_btn.setIcon(QIcon(icon_path))
-        self.settings_popover = SettingsPopover(settings.AUDIT_ENABLED, self)
+        self.settings_popover = SettingsPopover(settings.AUDIT_ENABLED, self.current_language, self)
         self.settings_popover.theme_changed.connect(self.set_dark_theme)
         self.settings_popover.export_requested.connect(self.export_audit)
+        self.settings_popover.language_changed.connect(self.set_language)
         self.settings_btn.clicked.connect(self.toggle_settings_popover)
         header_layout.addWidget(self.settings_btn)
 
@@ -354,9 +408,9 @@ class MainWindow(QMainWindow):
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(0)
 
-        sidebar_title = QLabel("BELGELER")
-        sidebar_title.setObjectName("SidebarTitle")
-        sidebar_layout.addWidget(sidebar_title)
+        self.sidebar_title = QLabel()
+        self.sidebar_title.setObjectName("SidebarTitle")
+        sidebar_layout.addWidget(self.sidebar_title)
 
         self.document_search = QLineEdit()
         self.document_search.setObjectName("DocumentSearch")
@@ -430,12 +484,12 @@ class MainWindow(QMainWindow):
         self.welcome_bubble.setObjectName("AssistantWelcomeBubble")
         bubble_layout = QVBoxLayout(self.welcome_bubble)
         bubble_layout.setContentsMargins(16, 13, 16, 13)
-        assistant_label = QLabel("Asistan")
-        assistant_label.setObjectName("AssistantLabel")
+        self.assistant_label = QLabel()
+        self.assistant_label.setObjectName("AssistantLabel")
         self.welcome_message = QLabel("Merhaba, belgelerinizle ilgili ne öğrenmek istersiniz?")
         self.welcome_message.setObjectName("WelcomeMessage")
         self.welcome_message.setWordWrap(True)
-        bubble_layout.addWidget(assistant_label)
+        bubble_layout.addWidget(self.assistant_label)
         bubble_layout.addWidget(self.welcome_message)
         welcome_layout.addWidget(self.welcome_bubble)
         welcome_layout.addStretch()
@@ -472,6 +526,7 @@ class MainWindow(QMainWindow):
         dashboard_splitter.setSizes([0, 1120])
 
         window_layout.addWidget(dashboard_splitter)
+        self.retranslate_ui()
 
     def apply_theme(self):
         """
@@ -497,6 +552,50 @@ class MainWindow(QMainWindow):
             if isinstance(widget, ChatCard):
                 widget.apply_colors(theme.colors)
 
+    def set_language(self, language):
+        if language not in ("tr", "en") or language == self.current_language:
+            return
+        self.current_language = language
+        save_language_preference(language)
+        if self.agent:
+            self.agent.set_language(language)
+        self.retranslate_ui()
+
+    def retranslate_ui(self):
+        language = self.current_language
+        self.setWindowTitle(tr("app.title", language))
+        self.app_title.setText(tr("app.title", language))
+        self.new_chat_btn.setText(tr("new_chat", language))
+        self.settings_btn.setAccessibleName(tr("settings", language))
+        self.settings_btn.setToolTip(tr("settings", language))
+        self.document_search.setPlaceholderText(tr("search_documents", language))
+        if not self.docs_list.currentItem():
+            self.detail_name.setText(tr("select_document", language))
+            self.detail_meta.setText(tr("document_detail_hint", language))
+        self.open_document_btn.setText(tr("open_document", language))
+        self.loading_label.setText(tr("loading", language))
+        self.assistant_label.setText(tr("assistant", language))
+        self.welcome_message.setText(tr("welcome", language))
+        self.query_input.setPlaceholderText(tr("query_placeholder", language))
+        self.send_btn.setText(tr("send", language))
+        self.settings_popover.retranslate(language)
+        theme = THEMES[self.current_theme]
+        for i in range(self.stream_layout.count()):
+            widget = self.stream_layout.itemAt(i).widget()
+            if isinstance(widget, ChatCard):
+                widget.retranslate(language, theme.colors)
+        self._update_document_counts()
+
+    def _update_document_counts(self):
+        active_count = sum(
+            1 for i in range(self.docs_list.count())
+            if (self.docs_list.item(i).data(Qt.UserRole) or {}).get("status") == "active"
+        )
+        self.documents_btn.setText(f"{tr('documents', self.current_language)} · {self.docs_list.count()}")
+        self.sidebar_title.setText(
+            f"{tr('documents.upper', self.current_language)}  ·  {active_count} {tr('active.upper', self.current_language)}"
+        )
+
     def set_dark_theme(self, enabled):
         target = "dark" if enabled else "light"
         if self.current_theme == target:
@@ -518,7 +617,7 @@ class MainWindow(QMainWindow):
         """
         Runs document parsing and indexing in the background.
         """
-        self.init_worker = InitWorker()
+        self.init_worker = InitWorker(self.current_language)
         self.init_worker.status_updated.connect(self.update_init_status)
         self.init_worker.finished.connect(self.on_init_finished)
         self.init_worker.error_occurred.connect(self.on_init_error)
@@ -541,17 +640,16 @@ class MainWindow(QMainWindow):
         # Populate Sidebar document states
         self.populate_sidebar()
         
-        self.settings_popover.set_system_status("Hazır", "ready")
+        self.settings_popover.set_system_status(tr("ready", self.current_language), "ready")
 
     def on_init_error(self, error_str):
-        self.loading_label.setText("Önyükleme hatası nedeniyle servis dışı!")
-        self.settings_popover.set_system_status("Bağlantı yok", "error")
+        self.loading_label.setText(tr("boot_error_short", self.current_language))
+        self.settings_popover.set_system_status(tr("offline", self.current_language), "error")
         
         QMessageBox.critical(
             self,
-            "Sistem Başlatma Hatası",
-            f"Veritabanı veya LLM servisleri yüklenemedi. "
-            f"Ollama uygulamasının arka planda çalıştığından emin olun.\n\nHata: {error_str}"
+            tr("boot_error_title", self.current_language),
+            tr("boot_error", self.current_language, error=error_str)
         )
 
     def populate_sidebar(self):
@@ -569,10 +667,10 @@ class MainWindow(QMainWindow):
                 if is_active:
                     bullet = "●"
                     active_count += 1
-                    status_str = "Aktif"
+                    status_str = tr("status.active", self.current_language)
                 else:
                     bullet = "○"
-                    status_str = "Pasif"
+                    status_str = tr("status.inactive", self.current_language)
                 
                 item_text = f"{bullet}  {fname}"
                 self.docs_list.addItem(item_text)
@@ -580,13 +678,10 @@ class MainWindow(QMainWindow):
                 item.setToolTip(fname)
                 item.setData(Qt.UserRole, {"filename": fname, **info, "status_label": status_str})
                 
-            self.documents_btn.setText(f"Belgeler · {self.docs_list.count()}")
-            sidebar_title = self.sidebar.findChild(QLabel, "SidebarTitle")
-            if sidebar_title:
-                sidebar_title.setText(f"BELGELER  ·  {active_count} AKTİF")
+            self._update_document_counts()
         except Exception as e:
             logger.error(f"Doküman listesi yüklenemedi: {e}")
-            self.documents_btn.setText("Belgeler · 0")
+            self.documents_btn.setText(f"{tr('documents', self.current_language)} · 0")
 
     def toggle_document_drawer(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
@@ -609,12 +704,16 @@ class MainWindow(QMainWindow):
     def show_document_details(self, item):
         metadata = item.data(Qt.UserRole) or {}
         filename = metadata.get("filename", item.text())
-        status = metadata.get("status_label", "Bilinmiyor")
+        raw_status = metadata.get("status")
+        if raw_status in ("active", "inactive"):
+            status = tr(f"status.{raw_status}", self.current_language)
+        else:
+            status = metadata.get("status_label", tr("status.unknown", self.current_language))
         updated_at = metadata.get("updated_at", "-")
         if updated_at and updated_at != "-":
             updated_at = updated_at.replace("T", " ")[:16]
         self.detail_name.setText(filename)
-        self.detail_meta.setText(f"{status}  ·  Son güncelleme: {updated_at}")
+        self.detail_meta.setText(f"{status}  ·  {tr('last_updated', self.current_language)}: {updated_at}")
         self.open_document_btn.setEnabled(True)
 
     def open_selected_document(self):
@@ -636,8 +735,8 @@ class MainWindow(QMainWindow):
             inside_docs = False
         if not inside_docs or not os.path.isfile(document_path):
             QMessageBox.warning(
-                self, "Belge bulunamadı",
-                f"Belge dosyasına erişilemiyor: {safe_name}"
+                self, tr("document_missing_title", self.current_language),
+                tr("document_missing", self.current_language, name=safe_name)
             )
             return False
 
@@ -646,8 +745,8 @@ class MainWindow(QMainWindow):
             url.setFragment(f"page={page}")
         if not QDesktopServices.openUrl(url):
             QMessageBox.warning(
-                self, "Belge açılamadı",
-                f"Belge varsayılan PDF görüntüleyicisinde açılamadı: {safe_name}"
+                self, tr("document_open_error_title", self.current_language),
+                tr("document_open_error", self.current_language, name=safe_name)
             )
             return False
         return True
@@ -667,6 +766,7 @@ class MainWindow(QMainWindow):
         # Disable inputs to prevent query overlapping
         self.query_input.setEnabled(False)
         self.send_btn.setEnabled(False)
+        self.settings_popover.language_selector.setEnabled(False)
         
         self.query_worker = QueryWorker(self.agent, query_text)
         self.query_worker.finished.connect(self.on_query_finished)
@@ -677,6 +777,7 @@ class MainWindow(QMainWindow):
         # Enable inputs
         self.query_input.setEnabled(True)
         self.send_btn.setEnabled(True)
+        self.settings_popover.language_selector.setEnabled(True)
         self.query_input.clear()
         self.query_input.setFocus()
         
@@ -690,7 +791,8 @@ class MainWindow(QMainWindow):
             answer=response["answer"],
             sources=response["sources"],
             confidence=response["confidence_score"],
-            colors=theme.colors
+            colors=theme.colors,
+            language=self.current_language,
         )
         card.source_requested.connect(self.open_document)
         
@@ -706,12 +808,12 @@ class MainWindow(QMainWindow):
     def on_query_error(self, error_str):
         self.query_input.setEnabled(True)
         self.send_btn.setEnabled(True)
+        self.settings_popover.language_selector.setEnabled(True)
         
         QMessageBox.warning(
             self,
-            "Sorgu Hatası",
-            f"Bağlantı kesintisi nedeniyle cevap alınamadı. "
-            f"Lütfen Ollama sunucusunu denetleyin.\n\nHata: {error_str}"
+            tr("query_error_title", self.current_language),
+            tr("query_error", self.current_language, error=error_str)
         )
         self._show_status("Sorgu hatası oluştu")
 
@@ -720,13 +822,13 @@ class MainWindow(QMainWindow):
         Triggers save dialog and exports audit history logs.
         """
         if not settings.AUDIT_ENABLED:
-            QMessageBox.information(self, "Audit Kapalı", "AUDIT_ENABLED=true olmadan audit kaydı veya export oluşturulmaz.")
+            QMessageBox.information(self, tr("audit.disabled_title", self.current_language), tr("audit.disabled", self.current_language))
             return
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Denetim Kayıtlarını Dışa Aktar",
+            tr("audit.export_title", self.current_language),
             "",
-            "CSV Dosyası (*.csv);;Excel Dosyası (*.xlsx)"
+            tr("audit.file_filter", self.current_language)
         )
         
         if not file_path:
@@ -740,15 +842,15 @@ class MainWindow(QMainWindow):
             export_audit_logs(export_path=file_path, format=export_format)
             QMessageBox.information(
                 self,
-                "Başarılı",
-                f"Denetim kayıtları başarıyla ihraç edildi:\n{file_path}"
+                tr("audit.success_title", self.current_language),
+                tr("audit.success", self.current_language, path=file_path)
             )
             self._show_status("İşlem kayıtları dışa aktarıldı", 4000)
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "İhraç Hatası",
-                f"Kayıtlar ihraç edilirken hata: {str(e)}"
+                tr("audit.error_title", self.current_language),
+                tr("audit.error", self.current_language, error=str(e))
             )
             self._show_status("Dışa aktarma hatası")
 

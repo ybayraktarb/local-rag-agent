@@ -20,7 +20,9 @@ def window(qapp, monkeypatch):
 
     monkeypatch.setattr(MainWindow, "_bootstrap_system", lambda self: None)
     monkeypatch.setattr("src.ui.main_window.load_theme_preference", lambda: "light")
+    monkeypatch.setattr("src.ui.main_window.load_language_preference", lambda: "tr")
     monkeypatch.setattr("src.ui.main_window.save_theme_preference", lambda theme: None)
+    monkeypatch.setattr("src.ui.main_window.save_language_preference", lambda language: None)
     result = MainWindow()
     result.show()
     qapp.processEvents()
@@ -105,7 +107,9 @@ def test_settings_theme_and_audit_visibility(qapp, monkeypatch, audit_enabled, e
 
     monkeypatch.setattr(MainWindow, "_bootstrap_system", lambda self: None)
     monkeypatch.setattr("src.ui.main_window.load_theme_preference", lambda: "light")
+    monkeypatch.setattr("src.ui.main_window.load_language_preference", lambda: "tr")
     monkeypatch.setattr("src.ui.main_window.save_theme_preference", lambda theme: None)
+    monkeypatch.setattr("src.ui.main_window.save_language_preference", lambda language: None)
     monkeypatch.setattr("src.ui.main_window.settings.AUDIT_ENABLED", audit_enabled)
     tested = MainWindow()
     assert (not tested.settings_popover.export_button.isHidden()) is expected
@@ -226,3 +230,20 @@ def test_missing_document_shows_warning(window, tmp_path, monkeypatch):
     monkeypatch.setattr("src.ui.main_window.QMessageBox.warning", warning)
     assert window.open_document("yok.pdf") is False
     assert "yok.pdf" in warning.call_args.args[2]
+
+
+def test_runtime_language_retranslates_ui_and_existing_cards(window):
+    from src.ui.main_window import ChatCard
+    from src.ui.theme import THEMES
+    window.agent = MagicMock()
+    card = ChatCard("Soru içeriği", "Yanıt içeriği", [{"source": "rehber.pdf", "page": 2}],
+                    .9, THEMES["light"].colors, "tr")
+    window.stream_layout.insertWidget(window.stream_layout.count() - 1, card)
+    window.set_language("en")
+    assert window.windowTitle() == "Local Document Assistant"
+    assert window.send_btn.text() == "Send"
+    assert card.query_label.text() == "Question: Soru içeriği"
+    assert card.answer_label.text() == "Yanıt içeriği"
+    assert card.copy_button.text() == "Copy"
+    assert card.source_chips[0][0].text() == "rehber.pdf · Page 2"
+    window.agent.set_language.assert_called_once_with("en")

@@ -395,26 +395,45 @@ def generate_qss(theme_name: str) -> str:
 
 SETTINGS_FILE = os.path.join(settings.DB_DIR, "ui_settings.json")
 
+def load_preferences() -> dict:
+    defaults = {"theme": "light", "language": "tr"}
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("theme") in THEMES:
+            defaults["theme"] = data["theme"]
+        if data.get("language") in ("tr", "en"):
+            defaults["language"] = data["language"]
+    except (OSError, ValueError, TypeError):
+        pass
+    return defaults
+
+def save_preferences(**changes):
+    data = load_preferences()
+    data.update(changes)
+    data["theme"] = data["theme"] if data.get("theme") in THEMES else "light"
+    data["language"] = data["language"] if data.get("language") in ("tr", "en") else "tr"
+    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
 def load_theme_preference() -> str:
     """
     Loads saved UI theme name preference from local settings json.
     """
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                data = json.load(f)
-                return data.get("theme", "light")
-        except:
-            pass
-    return "light"
+    return load_preferences()["theme"]
+
+def load_language_preference() -> str:
+    return load_preferences()["language"]
 
 def save_theme_preference(theme_name: str):
     """
     Saves theme choice to configuration path.
     """
-    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
-    try:
-        with open(SETTINGS_FILE, "w") as f:
-            json.dump({"theme": theme_name}, f)
-    except:
-        pass
+    save_preferences(theme=theme_name)
+
+def save_language_preference(language: str):
+    save_preferences(language=language)

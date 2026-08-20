@@ -7,12 +7,14 @@ from src.indexing.vectorstore_manager import VectorStoreManager
 from src.indexing.index_lifecycle import synchronize_index
 from src.agent.agent_builder import AgentBuilder
 from src.audit.audit_export import export_audit_logs
+from src.i18n import translate as tr
+from src.ui.theme import load_language_preference, save_language_preference
 
-def bootstrap_system():
+def bootstrap_system(language="tr"):
     """
     Initializes and boots the RAG indexing system.
     """
-    print("\n>>> Sistem başlatılıyor...")
+    print("\n" + tr("cli.starting", language))
     
     # 1. Ensure directories exist
     os.makedirs(settings.DOCS_DIR, exist_ok=True)
@@ -22,7 +24,7 @@ def bootstrap_system():
         os.makedirs(settings.AUDIT_DIR, exist_ok=True)
     
     # 2. Document Registry Scan
-    print("-> Dokümanlar taranıyor...")
+    print(tr("cli.scanning", language))
     registry = DocumentRegistry()
     changes = registry.scan_docs_folder()
     
@@ -31,48 +33,58 @@ def bootstrap_system():
         if failures:
             print("-> İndekslenemeyen ve sonraki açılışta yeniden denenecek dosyalar: " + ", ".join(failures))
     else:
-        print("-> Doküman kayıtlarında yeni bir değişiklik tespit edilmedi.")
+        print(tr("cli.no_changes", language))
 
     # 5. Build and return RAG Agent pipeline
-    print("-> RAG Ajanı kuruluyor...")
-    agent = AgentBuilder.build_agent()
-    print(">>> Sistem başarıyla hazırlandı!\n")
+    print(tr("cli.building", language))
+    agent = AgentBuilder.build_agent() if language == "tr" else AgentBuilder.build_agent(language=language)
+    print(tr("cli.ready", language) + "\n")
     return agent
 
 def main():
+    language = load_language_preference()
     print("=" * 80)
-    print("BANKA İÇİ YEREL RAG REHBERLİK ASİSTANI - CLI ARAYÜZÜ")
+    print(tr("cli.title", language))
     print("=" * 80)
-    print(f"Aktif Model: {settings.CHAT_MODEL}")
-    print(f"Embedding Modeli: {settings.EMBED_MODEL}")
-    print(f"Güvenlik Eşiği: {settings.CONFIDENCE_THRESHOLD}")
+    print(f"{tr('cli.active_model', language)}: {settings.CHAT_MODEL}")
+    print(f"{tr('cli.embedding_model', language)}: {settings.EMBED_MODEL}")
+    print(f"{tr('cli.threshold', language)}: {settings.CONFIDENCE_THRESHOLD}")
     print("=" * 80)
     
     try:
-        agent = bootstrap_system()
+        agent = bootstrap_system(language)
     except Exception as e:
         print(f"\n[KRİTİK HATA] Sistem başlatılamadı: {e}")
         sys.exit(1)
         
-    print("Komutlar:")
-    print("  - ':q' veya ':quit' : Uygulamadan çıkış yapar.")
-    print("  - ':export'         : Denetim (audit) günlüklerini CSV olarak ihraç eder.")
-    print("  - ':status'         : Kayıtlı dokümanların durumunu listeler.")
+    print(tr("cli.help", language))
     print("-" * 80)
     
     while True:
         try:
-            query = input("\nSoru girin > ").strip()
+            query = input("\n" + tr("cli.prompt", language)).strip()
         except (KeyboardInterrupt, EOFError):
-            print("\nÇıkış yapılıyor...")
+            print("\n" + tr("cli.exiting", language))
             break
             
         if not query:
             continue
             
         if query in [":q", ":quit"]:
-            print("Çıkış yapılıyor...")
+            print(tr("cli.exiting", language))
             break
+
+        if query.startswith(":language"):
+            parts = query.split()
+            if len(parts) != 2 or parts[1] not in ("tr", "en"):
+                print(tr("cli.language_usage", language))
+                continue
+            language = parts[1]
+            save_language_preference(language)
+            agent.set_language(language)
+            print(tr("cli.language_changed", language))
+            print(tr("cli.help", language))
+            continue
             
         if query == ":export":
             if not settings.AUDIT_ENABLED:
@@ -88,27 +100,27 @@ def main():
             
         if query == ":status":
             registry = DocumentRegistry()
-            print("\nKayıtlı Dokümanların Durumu:")
+            print("\n" + tr("cli.status_title", language) + ":")
             for filename, info in registry.data.items():
-                status = "Aktif" if info.get("status") == "active" else "Pasif"
-                print(f"  - {filename} [{status}] (Son Güncelleme: {info.get('updated_at')})")
+                status = tr("status.active", language) if info.get("status") == "active" else tr("status.inactive", language)
+                print(f"  - {filename} [{status}] ({tr('cli.updated', language)}: {info.get('updated_at')})")
             continue
             
         # Execute query
-        print("Yanıt aranıyor...")
+        print(tr("cli.searching", language))
         response = agent.query(query)
         
-        print("\nCevap:")
+        print("\n" + tr("cli.answer", language) + ":")
         print(response["answer"])
         
         if response["sources"]:
-            print("\nKaynaklar:")
+            print("\n" + tr("sources", language) + ":")
             for src in response["sources"]:
-                print(f"  - {src['source']} (Sayfa {src['page']})")
+                print(f"  - {src['source']} ({tr('page', language)} {src['page']})")
         else:
-            print("\nKaynak: Yok (Güven Eşiği Altı)")
+            print("\n" + tr("cli.no_source", language))
             
-        print(f"Güven Skoru: {response['confidence_score']:.4f}")
+        print(f"{tr('cli.score', language)}: {response['confidence_score']:.4f}")
         print("-" * 80)
 
 if __name__ == "__main__":
