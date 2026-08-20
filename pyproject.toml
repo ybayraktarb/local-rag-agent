@@ -25,3 +25,7 @@ local-rag = "src.cli.main:main"
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration", "tests"]
 markers = ["integration: requires a running local Ollama service"]
+
+[tool.pyright]
+extraPaths = ["."]
+

@@ -1,5 +1,6 @@
 import sys
 import os
+from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -49,16 +50,18 @@ def test_query_worker_run():
     
     worker = QueryWorker(agent=mock_agent, query_text="Test query")
     
-    # Mock signals
-    worker.finished = MagicMock()
-    worker.error_occurred = MagicMock()
+    finished_mock = MagicMock()
+    error_mock = MagicMock()
+    worker.finished.connect(finished_mock)
+    worker.error_occurred.connect(error_mock)
     
     # Run the worker synchronously for testing
     worker.run()
     
     mock_agent.query.assert_called_once_with("Test query")
-    worker.finished.emit.assert_called_once_with({"answer": "Test answer", "sources": []})
-    worker.error_occurred.emit.assert_not_called()
+    finished_mock.assert_called_once_with({"answer": "Test answer", "sources": []})
+    error_mock.assert_not_called()
+
 
 
 def test_referans_header_and_document_drawer(window, qapp):
@@ -75,14 +78,15 @@ def test_referans_header_and_document_drawer(window, qapp):
 
 def test_document_filter_and_selection_details(window):
     first = QListWidgetItem("●  rehber.pdf")
-    first.setData(Qt.UserRole, {
+    first.setData(int(Qt.ItemDataRole.UserRole), {
         "filename": "rehber.pdf", "status_label": "Aktif",
         "updated_at": "2026-07-16T10:30:00",
     })
     second = QListWidgetItem("●  politika.pdf")
-    second.setData(Qt.UserRole, {"filename": "politika.pdf"})
+    second.setData(int(Qt.ItemDataRole.UserRole), {"filename": "politika.pdf"})
     window.docs_list.addItem(first)
     window.docs_list.addItem(second)
+
 
     window.document_search.setText("rehber")
     assert not first.isHidden()
@@ -209,7 +213,7 @@ def test_document_and_source_open_pdf(window, tmp_path, monkeypatch, qapp):
     )
 
     assert window.open_document("rehber.pdf", 4) is True
-    assert opened_urls[-1].toLocalFile() == str(pdf)
+    assert Path(opened_urls[-1].toLocalFile()) == Path(pdf)
     assert opened_urls[-1].fragment() == "page=4"
 
     from src.ui.main_window import ChatCard
@@ -219,9 +223,12 @@ def test_document_and_source_open_pdf(window, tmp_path, monkeypatch, qapp):
         0.9, THEMES["light"].colors,
     )
     card.source_requested.connect(window.open_document)
-    card.findChild(QPushButton, "SourceChip").click()
+    chip = card.findChild(QPushButton, "SourceChip")
+    assert chip is not None
+    chip.click()
     qapp.processEvents()
     assert opened_urls[-1].fragment() == "page=2"
+
 
 
 def test_missing_document_shows_warning(window, tmp_path, monkeypatch):
