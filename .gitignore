@@ -1,6 +1,8 @@
 # Ignore local PDFs (except sample directory)
+docs/*.pdf
 docs/**/*.pdf
 !docs/sample/
+
 
 # Ignore vector database persistent store
 /db/
